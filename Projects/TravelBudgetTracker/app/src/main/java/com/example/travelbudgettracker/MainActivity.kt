@@ -1,47 +1,57 @@
+// ... existing code ...
 package com.example.travelbudgettracker
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.travelbudgettracker.data.AppDatabase
+import com.example.travelbudgettracker.data.BudgetRepository
+import com.example.travelbudgettracker.ui.BudgetViewModel
+import com.example.travelbudgettracker.ui.BudgetViewModelFactory
+import com.example.travelbudgettracker.ui.HomeScreen
+import com.example.travelbudgettracker.ui.TripDetailScreen
 import com.example.travelbudgettracker.ui.theme.TravelBudgetTrackerTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        // 1. Initialize Database & Repository
+        val database = AppDatabase.getDatabase(applicationContext)
+        val repository = BudgetRepository(database.tripDao(), database.expenseDao())
+
         setContent {
             TravelBudgetTrackerTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    // 2. Setup ViewModel & Navigation
+                    val viewModel: BudgetViewModel = viewModel(factory = BudgetViewModelFactory(repository))
+                    val navController = rememberNavController()
+
+                    NavHost(navController = navController, startDestination = "home") {
+                        composable("home") {
+                            HomeScreen(viewModel = viewModel, navController = navController)
+                        }
+                        composable("trip_detail/{tripId}") { backStackEntry ->
+                            val tripId = backStackEntry.arguments?.getString("tripId")?.toLongOrNull() ?: return@composable
+                            TripDetailScreen(tripId = tripId, viewModel = viewModel) {
+                                navController.popBackStack()
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    TravelBudgetTrackerTheme {
-        Greeting("Android")
-    }
-}
+// ... existing code ...
