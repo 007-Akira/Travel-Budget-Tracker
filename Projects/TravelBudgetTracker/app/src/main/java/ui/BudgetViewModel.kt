@@ -22,6 +22,12 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
         }
     }
 
+    fun deleteTrip(trip: Trip) {
+        viewModelScope.launch {
+            repository.deleteTrip(trip)
+        }
+    }
+
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch {
             repository.deleteExpense(expense)
@@ -38,6 +44,7 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
         receiptUri: String?
     ) {
         viewModelScope.launch {
+            val cappedSplitOwed = if (amount > 0.0) splitOwed.coerceIn(0.0, amount) else 0.0
             val expense = Expense(
                 tripId = tripId,
                 expenseName = name,
@@ -46,7 +53,7 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
                 time = System.currentTimeMillis(),
                 category = category,
                 splitWithName = splitWith,
-                splitAmountOwed = splitOwed,
+                splitAmountOwed = cappedSplitOwed,
                 receiptUri = receiptUri
             )
             repository.insertExpense(expense)

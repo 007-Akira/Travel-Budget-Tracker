@@ -21,6 +21,12 @@ class BudgetRepository(private val tripDao: TripDao, private val expenseDao: Exp
         }
     }
 
+    suspend fun deleteTrip(trip: Trip) {
+        withContext(Dispatchers.IO) {
+            tripDao.deleteTrip(trip)
+        }
+    }
+
     suspend fun deleteExpense(expense: Expense) {
         withContext(Dispatchers.IO) {
             expenseDao.deleteExpense(expense)

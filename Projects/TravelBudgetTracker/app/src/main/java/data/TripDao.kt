@@ -12,4 +12,7 @@ interface TripDao {
 
     @Query("SELECT * FROM trips_table ORDER BY createdAt DESC")
     fun getAllTrips(): Flow<List<Trip>>
+
+    @androidx.room.Delete
+    fun deleteTrip(trip: Trip)
 }

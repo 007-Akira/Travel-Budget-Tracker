@@ -6,8 +6,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -36,17 +38,19 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.travelbudgettracker.data.Expense
+import com.example.travelbudgettracker.data.Trip
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
     val trips by viewModel.allTrips.collectAsState(initial = emptyList())
     var showDialog by remember { mutableStateOf(false) }
     var tripName by remember { mutableStateOf("") }
+    var selectedTripForDelete by remember { mutableStateOf<Trip?>(null) }
 
     Scaffold(
         topBar = {
@@ -69,11 +73,17 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
         LazyColumn(contentPadding = padding, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             items(trips) { trip ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .combinedClickable(
+                            onClick = { navController.navigate("trip_detail/${trip.tripId}") },
+                            onLongClick = { selectedTripForDelete = trip },
+                            onLongClickLabel = "Delete trip"
+                        ),
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    onClick = { navController.navigate("trip_detail/${trip.tripId}") }
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
                     Row(
                         modifier = Modifier.padding(20.dp).fillMaxWidth(),
@@ -129,13 +139,59 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
                 dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancel", color = Color.Gray) } }
             )
         }
+
+        selectedTripForDelete?.let { trip ->
+            AlertDialog(
+                onDismissRequest = { selectedTripForDelete = null },
+                title = { Text("Delete Trip", fontWeight = FontWeight.Bold) },
+                text = { Text("Delete ${trip.tripName} and all its expenses?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteTrip(trip)
+                            selectedTripForDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                    ) { Text("Delete") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { selectedTripForDelete = null }) { Text("Cancel", color = Color.Gray) }
+                }
+            )
+        }
     }
 }
 
 // Data class to hold parsed debt information
 data class DebtItem(val expenseId: Long, val expenseName: String, val personName: String, val amount: Double)
 
-@OptIn(ExperimentalMaterial3Api::class)
+private const val SPLIT_ENTRY_SEPARATOR = " | "
+private const val SPLIT_AMOUNT_SEPARATOR = ": ₹"
+
+private fun Expense.parsedSplitDebts(): List<DebtItem> {
+    var remainingAmount = amount.coerceAtLeast(0.0)
+
+    return splitWithName
+        ?.split(SPLIT_ENTRY_SEPARATOR)
+        ?.mapNotNull { split ->
+            if (remainingAmount <= 0.0) return@mapNotNull null
+
+            val parts = split.split(SPLIT_AMOUNT_SEPARATOR, limit = 2)
+            if (parts.size != 2) return@mapNotNull null
+
+            val personName = parts[0].trim()
+            val requestedAmount = parts[1].toDoubleOrNull()?.coerceAtLeast(0.0) ?: return@mapNotNull null
+            if (personName.isBlank() || requestedAmount <= 0.0) return@mapNotNull null
+
+            val cappedAmount = requestedAmount.coerceAtMost(remainingAmount)
+            remainingAmount -= cappedAmount
+
+            DebtItem(expenseId, expenseName, personName, cappedAmount)
+        }
+        ?: emptyList()
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
@@ -165,31 +221,20 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
     val headerText = if (selectedFilter == "All") "Total Spent" else "$selectedFilter Spent"
 
     // Parse all debts to calculate remaining active owed money
-    val allParsedDebts = allExpenses.flatMap { exp ->
-        val splits = exp.splitWithName?.split(" | ") ?: emptyList()
-        splits.mapNotNull { split ->
-            if (split.contains(": ₹")) {
-                val parts = split.split(": ₹")
-                DebtItem(exp.expenseId, exp.expenseName, parts[0], parts[1].toDoubleOrNull() ?: 0.0)
-            } else null
-        }
-    }
+    val allParsedDebts = allExpenses.flatMap { it.parsedSplitDebts() }
 
     // Calculate dynamic owed based on what ISN'T in the paidDebts set
     val displayOwed = filteredExpenses.sumOf { exp ->
-        val splits = exp.splitWithName?.split(" | ") ?: emptyList()
-        splits.sumOf { split ->
-            if (split.contains(": ₹")) {
-                val parts = split.split(": ₹")
-                val debtId = "${exp.expenseId}_${parts[0]}"
-                if (paidDebts.contains(debtId)) 0.0 else (parts[1].toDoubleOrNull() ?: 0.0)
-            } else 0.0
+        exp.parsedSplitDebts().sumOf { debt ->
+            val debtId = "${debt.expenseId}_${debt.personName}"
+            if (paidDebts.contains(debtId)) 0.0 else debt.amount
         }
     }
 
     var showExpenseDialog by remember { mutableStateOf(false) }
     var showDebtsDialog by remember { mutableStateOf(false) }
     var selectedExpenseForDetails by remember { mutableStateOf<Expense?>(null) }
+    var selectedExpenseForDelete by remember { mutableStateOf<Expense?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) exportToCsv(context, uri, allExpenses)
@@ -272,7 +317,14 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
                 items(filteredExpenses) { exp ->
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { selectedExpenseForDetails = exp },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                            .combinedClickable(
+                                onClick = { selectedExpenseForDetails = exp },
+                                onLongClick = { selectedExpenseForDelete = exp },
+                                onLongClickLabel = "Delete expense"
+                            ),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -296,13 +348,10 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
                                 Text("${exp.category} • ${formatDate(exp.date)}", fontSize = 12.sp, color = Color.Gray)
 
                                 // Show pending splits summary
-                                val pendingOwedForThis = exp.splitWithName?.split(" | ")?.sumOf { split ->
-                                    if (split.contains(": ₹")) {
-                                        val parts = split.split(": ₹")
-                                        val debtId = "${exp.expenseId}_${parts[0]}"
-                                        if (paidDebts.contains(debtId)) 0.0 else (parts[1].toDoubleOrNull() ?: 0.0)
-                                    } else 0.0
-                                } ?: 0.0
+                                val pendingOwedForThis = exp.parsedSplitDebts().sumOf { debt ->
+                                    val debtId = "${debt.expenseId}_${debt.personName}"
+                                    if (paidDebts.contains(debtId)) 0.0 else debt.amount
+                                }
 
                                 if (pendingOwedForThis > 0) {
                                     Text("Pending Split: ₹${formatAmt(pendingOwedForThis)}", color = Color(0xFF00BFA5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -339,6 +388,29 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
                 onToggleDebt = toggleDebt,
                 viewModel = viewModel,
                 onDismiss = { selectedExpenseForDetails = null }
+            )
+        }
+
+        selectedExpenseForDelete?.let { exp ->
+            AlertDialog(
+                onDismissRequest = { selectedExpenseForDelete = null },
+                title = { Text("Delete Expense", fontWeight = FontWeight.Bold) },
+                text = { Text("Delete ${exp.expenseName}?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteExpense(exp)
+                            if (selectedExpenseForDetails?.expenseId == exp.expenseId) {
+                                selectedExpenseForDetails = null
+                            }
+                            selectedExpenseForDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                    ) { Text("Delete") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { selectedExpenseForDelete = null }) { Text("Cancel", color = Color.Gray) }
+                }
             )
         }
 
@@ -431,6 +503,31 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
         selectedUris = uris
     }
 
+    val amountValue = expAmount.toDoubleOrNull()
+    val validSplits = splits.mapNotNull { split ->
+        val name = split.name.trim()
+        val owedAmount = split.amount.toDoubleOrNull()
+
+        if (name.isNotBlank() && owedAmount != null && owedAmount > 0.0) {
+            name to owedAmount
+        } else {
+            null
+        }
+    }
+    val totalOwed = validSplits.sumOf { it.second }
+    val hasIncompleteSplit = splits.any { split ->
+        val hasSplitInput = split.name.isNotBlank() || split.amount.isNotBlank()
+        val owedAmount = split.amount.toDoubleOrNull()
+
+        hasSplitInput && (split.name.isBlank() || owedAmount == null || owedAmount <= 0.0)
+    }
+    val splitExceedsAmount = amountValue != null && amountValue > 0.0 && totalOwed > amountValue
+    val saveEnabled = expName.isNotBlank() &&
+            amountValue != null &&
+            amountValue > 0.0 &&
+            !hasIncompleteSplit &&
+            !splitExceedsAmount
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Record Expense", fontWeight = FontWeight.Bold, fontSize = 22.sp) },
@@ -439,7 +536,15 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                 item {
                     OutlinedTextField(value = expName, onValueChange = { expName = it }, label = { Text("What did you pay for?") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(value = expAmount, onValueChange = { expAmount = it }, label = { Text("Total Bill Amount (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(
+                        value = expAmount,
+                        onValueChange = { expAmount = it },
+                        label = { Text("Total Bill Amount (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        isError = expAmount.isNotBlank() && (amountValue == null || amountValue <= 0.0),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Category", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
@@ -476,7 +581,9 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                                 value = split.amount,
                                 onValueChange = { newAmt -> splits = splits.toMutableList().apply { this[index] = split.copy(amount = newAmt) } },
                                 label = { Text("₹ Owed") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                isError = (split.name.isNotBlank() || split.amount.isNotBlank()) &&
+                                        ((split.amount.toDoubleOrNull() ?: 0.0) <= 0.0 || splitExceedsAmount),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true
                             )
@@ -484,6 +591,22 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                                 Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red)
                             }
                         }
+                    }
+
+                    val splitStatusText = when {
+                        hasIncompleteSplit -> "Enter a name and valid amount for each split."
+                        splitExceedsAmount -> "Split total ₹${formatAmt(totalOwed)} cannot be more than bill ₹${formatAmt(amountValue ?: 0.0)}."
+                        validSplits.isNotEmpty() -> "Split total: ₹${formatAmt(totalOwed)}"
+                        else -> null
+                    }
+                    if (splitStatusText != null) {
+                        Text(
+                            text = splitStatusText,
+                            color = if (hasIncompleteSplit || splitExceedsAmount) MaterialTheme.colorScheme.error else Color.Gray,
+                            fontSize = 12.sp,
+                            fontWeight = if (hasIncompleteSplit || splitExceedsAmount) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -504,11 +627,10 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
         confirmButton = {
             Button(
                 onClick = {
-                    val amount = expAmount.toDoubleOrNull() ?: 0.0
-                    if (expName.isNotBlank() && amount > 0) {
-                        val totalOwed = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                        val formattedSplitDetails = splits.filter { it.name.isNotBlank() }
-                            .joinToString(" | ") { "${it.name}: ₹${it.amount}" }
+                    val amount = amountValue ?: 0.0
+                    if (saveEnabled) {
+                        val formattedSplitDetails = validSplits
+                            .joinToString(SPLIT_ENTRY_SEPARATOR) { "${it.first}: ₹${it.second}" }
                         val internalImagePaths = saveImagesToInternalStorage(context, selectedUris)
 
                         viewModel.addExpense(
@@ -517,12 +639,13 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                             amount = amount,
                             category = selectedCategory,
                             splitWith = formattedSplitDetails.takeIf { it.isNotEmpty() },
-                            splitOwed = totalOwed,
+                            splitOwed = totalOwed.coerceAtMost(amount),
                             receiptUri = internalImagePaths
                         )
                         onDismiss()
                     }
                 },
+                enabled = saveEnabled,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EA))
             ) { Text("Save Expense") }
         },
@@ -534,6 +657,7 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
 @Composable
 fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: (String, Boolean) -> Unit, viewModel: BudgetViewModel, onDismiss: () -> Unit) {
     val uris = expense.receiptUri?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+    val splitDebts = expense.parsedSplitDebts()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -569,30 +693,24 @@ fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: 
                         }
                     }
 
-                    if (!expense.splitWithName.isNullOrBlank()) {
+                    if (splitDebts.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Split Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE0F2F1)), shape = RoundedCornerShape(16.dp)) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                val splits = expense.splitWithName.split(" | ")
-                                splits.forEach { split ->
-                                    if (split.contains(": ₹")) {
-                                        val parts = split.split(": ₹")
-                                        val name = parts[0]
-                                        val amt = parts[1].toDoubleOrNull() ?: 0.0
-                                        val debtId = "${expense.expenseId}_$name"
-                                        val isPaid = paidDebts.contains(debtId)
+                                splitDebts.forEach { debt ->
+                                    val debtId = "${debt.expenseId}_${debt.personName}"
+                                    val isPaid = paidDebts.contains(debtId)
 
-                                        Row(modifier = Modifier.fillMaxWidth().clickable { onToggleDebt(debtId, !isPaid) }, verticalAlignment = Alignment.CenterVertically) {
-                                            Checkbox(
-                                                checked = isPaid,
-                                                onCheckedChange = { onToggleDebt(debtId, it) },
-                                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00BFA5))
-                                            )
-                                            Text(name, fontSize = 16.sp, color = if (isPaid) Color.Gray else Color(0xFF00695C), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Text("₹${formatAmt(amt)}", fontWeight = FontWeight.Bold, color = if (isPaid) Color.Gray else Color(0xFF004D40), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
-                                        }
+                                    Row(modifier = Modifier.fillMaxWidth().clickable { onToggleDebt(debtId, !isPaid) }, verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = isPaid,
+                                            onCheckedChange = { onToggleDebt(debtId, it) },
+                                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00BFA5))
+                                        )
+                                        Text(debt.personName, fontSize = 16.sp, color = if (isPaid) Color.Gray else Color(0xFF00695C), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Text("₹${formatAmt(debt.amount)}", fontWeight = FontWeight.Bold, color = if (isPaid) Color.Gray else Color(0xFF004D40), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
                                     }
                                 }
                             }
@@ -665,8 +783,13 @@ fun exportToCsv(context: Context, uri: Uri, expenses: List<Expense>) {
             val writer = outputStream.bufferedWriter()
             writer.write("Expense Name,Amount (Rs),Date,Category,Split Details,Total Owed\n")
             expenses.forEach { exp ->
-                val cleanSplit = exp.splitWithName?.replace(",", ";") ?: ""
-                writer.write("${exp.expenseName},${exp.amount},${formatDate(exp.date)},${exp.category},$cleanSplit,${exp.splitAmountOwed}\n")
+                val splitDebts = exp.parsedSplitDebts()
+                val cleanSplit = splitDebts
+                    .joinToString(SPLIT_ENTRY_SEPARATOR) { "${it.personName}: ₹${formatAmt(it.amount)}" }
+                    .replace(",", ";")
+                val cappedOwed = splitDebts.sumOf { it.amount }
+
+                writer.write("${exp.expenseName},${exp.amount},${formatDate(exp.date)},${exp.category},$cleanSplit,$cappedOwed\n")
             }
             writer.flush()
         }
