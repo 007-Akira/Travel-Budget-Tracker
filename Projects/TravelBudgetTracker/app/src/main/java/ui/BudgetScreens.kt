@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +19,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +49,99 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val ScreenBackground = Color(0xFFF7F8FC)
+private val CardSurface = Color.White
+private val Ink = Color(0xFF111827)
+private val MutedInk = Color(0xFF687386)
+private val Hairline = Color(0xFFE0E7F2)
+private val BrandBlue = Color(0xFF3157D5)
+private val BrandTeal = Color(0xFF00A896)
+private val BrandOrange = Color(0xFFF97316)
+private val BrandViolet = Color(0xFF6D5DF6)
+private val DangerRed = Color(0xFFD32F2F)
+
+private fun categoryAccent(category: String): Color = when (category) {
+    "Food" -> BrandOrange
+    "Travel" -> BrandBlue
+    "Stay" -> BrandViolet
+    else -> Color(0xFF64748B)
+}
+
+private fun categorySoft(category: String): Color = when (category) {
+    "Food" -> Color(0xFFFFF3E6)
+    "Travel" -> Color(0xFFEAF0FF)
+    "Stay" -> Color(0xFFF0EDFF)
+    else -> Color(0xFFEFF3F8)
+}
+
+private fun categoryIcon(category: String): ImageVector = when (category) {
+    "Food" -> Icons.Rounded.Restaurant
+    "Travel" -> Icons.Rounded.DirectionsCar
+    "Stay" -> Icons.Rounded.Hotel
+    else -> Icons.AutoMirrored.Rounded.ReceiptLong
+}
+
+@Composable
+private fun EmptyState(icon: ImageVector, title: String, message: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(vertical = 36.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            modifier = Modifier.size(68.dp),
+            shape = CircleShape,
+            color = Color(0xFFEAF0FF),
+            contentColor = BrandBlue
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(32.dp))
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(title, color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(message, color = MutedInk, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun MetricCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    brush: Brush,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val cardModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+
+    Box(
+        modifier = cardModifier
+            .heightIn(min = 108.dp)
+            .background(brush = brush, shape = RoundedCornerShape(8.dp))
+            .padding(16.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(32.dp),
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.18f),
+                    contentColor = Color.White
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(title, color = Color.White.copy(alpha = 0.84f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
@@ -53,57 +151,117 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
     var selectedTripForDelete by remember { mutableStateOf<Trip?>(null) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("AK'S Budget Tracker", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        },
+        containerColor = ScreenBackground,
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = { showDialog = true },
-                containerColor = Color(0xFF6200EA),
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Trip", fontWeight = FontWeight.Bold) },
+                containerColor = BrandBlue,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Add, "Add Trip")
-            }
+                shape = RoundedCornerShape(8.dp)
+            )
         }
     ) { padding ->
-        LazyColumn(contentPadding = padding, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            items(trips) { trip ->
+        LazyColumn(
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = padding.calculateTopPadding() + 12.dp,
+                end = 16.dp,
+                bottom = padding.calculateBottomPadding() + 92.dp
+            ),
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 138.dp)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(Color(0xFF152E8E), BrandBlue, BrandTeal)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(18.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.White.copy(alpha = 0.16f),
+                            contentColor = Color.White
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(formatDate(System.currentTimeMillis()), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Trips, tabs, and totals", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("A cleaner place to track every ride, stay, meal, and split.", color = Color.White.copy(alpha = 0.82f), fontSize = 13.sp)
+                    }
+                }
+            }
+
+            if (trips.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Default.Add,
+                        title = "No trips yet",
+                        message = "Your next travel budget will land here."
+                    )
+                }
+            }
+
+            items(trips, key = { it.tripId }) { trip ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
                         .combinedClickable(
                             onClick = { navController.navigate("trip_detail/${trip.tripId}") },
                             onLongClick = { selectedTripForDelete = trip },
                             onLongClickLabel = "Delete trip"
                         ),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Hairline),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardSurface)
                 ) {
                     Row(
-                        modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
-                            Text(text = trip.tripName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E1E1E))
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = formatDate(trip.createdAt), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Surface(
+                                modifier = Modifier.size(50.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFEAF0FF),
+                                contentColor = BrandBlue
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(24.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = trip.tripName, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(modifier = Modifier.height(5.dp))
+                                Text(text = formatDate(trip.createdAt), fontSize = 12.sp, color = MutedInk, fontWeight = FontWeight.Medium)
                             }
                         }
-                        Box(
-                            modifier = Modifier.size(40.dp).background(Color(0xFFF3E5F5), CircleShape),
-                            contentAlignment = Alignment.Center
+                        Surface(
+                            modifier = Modifier.size(36.dp),
+                            shape = CircleShape,
+                            color = Color(0xFFF2F5FA),
+                            contentColor = BrandBlue
                         ) {
-                            Icon(Icons.Rounded.ChevronRight, contentDescription = "Open", tint = Color(0xFF6200EA))
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Rounded.ChevronRight, contentDescription = "Open", modifier = Modifier.size(22.dp))
+                            }
                         }
                     }
                 }
@@ -113,7 +271,9 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
         if (showDialog) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
-                title = { Text("Where to next?", fontWeight = FontWeight.Bold) },
+                shape = RoundedCornerShape(8.dp),
+                containerColor = CardSurface,
+                title = { Text("Where to next?", color = Ink, fontWeight = FontWeight.ExtraBold) },
                 text = {
                     OutlinedTextField(
                         value = tripName,
@@ -121,7 +281,7 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
                         label = { Text("Trip Name (e.g., Manali Ride)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(8.dp)
                     )
                 },
                 confirmButton = {
@@ -133,7 +293,8 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
                                 showDialog = false
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EA))
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
                     ) { Text("Let's Go!") }
                 },
                 dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancel", color = Color.Gray) } }
@@ -143,7 +304,10 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
         selectedTripForDelete?.let { trip ->
             AlertDialog(
                 onDismissRequest = { selectedTripForDelete = null },
-                title = { Text("Delete Trip", fontWeight = FontWeight.Bold) },
+                shape = RoundedCornerShape(8.dp),
+                containerColor = CardSurface,
+                icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = DangerRed) },
+                title = { Text("Delete Trip", color = Ink, fontWeight = FontWeight.ExtraBold) },
                 text = { Text("Delete ${trip.tripName} and all its expenses?") },
                 confirmButton = {
                     Button(
@@ -151,7 +315,8 @@ fun HomeScreen(viewModel: BudgetViewModel, navController: NavController) {
                             viewModel.deleteTrip(trip)
                             selectedTripForDelete = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
                     ) { Text("Delete") }
                 },
                 dismissButton = {
@@ -241,62 +406,57 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
     }
 
     Scaffold(
+        containerColor = ScreenBackground,
         topBar = {
             TopAppBar(
-                title = { Text("Trip Dashboard", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
-                actions = { IconButton(onClick = { exportLauncher.launch("Trip_Expenses.csv") }) { Icon(Icons.Default.Share, "Export CSV") } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                title = {
+                    Column {
+                        Text("Trip Dashboard", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp)
+                        Text("${filteredExpenses.size} transactions", color = MutedInk, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Ink) } },
+                actions = {
+                    IconButton(onClick = { exportLauncher.launch("Trip_Expenses.csv") }) {
+                        Icon(Icons.Default.Share, "Export CSV", tint = Ink)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ScreenBackground)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showExpenseDialog = true },
-                icon = { Icon(Icons.Default.Add, "Add") },
-                text = { Text("Expense") },
-                containerColor = Color(0xFF6200EA),
-                contentColor = Color.White
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Expense", fontWeight = FontWeight.Bold) },
+                containerColor = BrandBlue,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(8.dp)
             )
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
 
-            // --- Premium Summary Dashboard ---
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Total Spent Card
-                Box(
-                    modifier = Modifier.weight(1f).background(
-                        brush = Brush.linearGradient(colors = listOf(Color(0xFFE53935), Color(0xFFEF5350))),
-                        shape = RoundedCornerShape(20.dp)
-                    ).padding(16.dp)
-                ) {
-                    Column {
-                        Text(headerText, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                        Text("₹${formatAmt(displayTotal)}", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.White)
-                    }
-                }
-
-                // Owed to You Card (CLICKABLE)
-                Box(
-                    modifier = Modifier.weight(1f).background(
-                        brush = Brush.linearGradient(colors = listOf(Color(0xFF00BFA5), Color(0xFF1DE9B6))),
-                        shape = RoundedCornerShape(20.dp)
-                    ).clickable { showDebtsDialog = true }.padding(16.dp)
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("You are Owed", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Rounded.OpenInNew, contentDescription = "View", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
-                        }
-                        Text("₹${formatAmt(displayOwed)}", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.White)
-                    }
-                }
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricCard(
+                    title = headerText,
+                    value = "₹${formatAmt(displayTotal)}",
+                    icon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                    brush = Brush.linearGradient(listOf(Color(0xFFE53935), BrandOrange)),
+                    modifier = Modifier.weight(1f)
+                )
+                MetricCard(
+                    title = "You are Owed",
+                    value = "₹${formatAmt(displayOwed)}",
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    brush = Brush.linearGradient(listOf(BrandTeal, Color(0xFF18C6B5), BrandBlue)),
+                    modifier = Modifier.weight(1f),
+                    onClick = { showDebtsDialog = true }
+                )
             }
 
-            // --- Category Filters ---
             LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -304,69 +464,106 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
                     FilterChip(
                         selected = selectedFilter == cat,
                         onClick = { selectedFilter = cat },
-                        label = { Text(cat, fontWeight = if (selectedFilter == cat) FontWeight.Bold else FontWeight.Normal) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF6200EA), selectedLabelColor = Color.White),
-                        shape = RoundedCornerShape(16.dp)
+                        label = { Text(cat, fontWeight = FontWeight.Bold) },
+                        leadingIcon = if (selectedFilter == cat) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = CardSurface,
+                            labelColor = MutedInk,
+                            selectedContainerColor = BrandBlue,
+                            selectedLabelColor = Color.White,
+                            selectedLeadingIconColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
                     )
                 }
             }
 
-            Text("Transactions", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Transactions", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                Surface(shape = CircleShape, color = Color(0xFFEAF0FF), contentColor = BrandBlue) {
+                    Text("${filteredExpenses.size}", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
 
-            // --- Expense List ---
-            LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                items(filteredExpenses) { exp ->
+            LazyColumn(
+                modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (filteredExpenses.isEmpty()) {
+                    item {
+                        EmptyState(
+                            icon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                            title = "No transactions",
+                            message = if (selectedFilter == "All") {
+                                "Your spend will land here."
+                            } else {
+                                "Your ${selectedFilter.lowercase(Locale.getDefault())} spend will land here."
+                            }
+                        )
+                    }
+                }
+
+                items(filteredExpenses, key = { it.expenseId }) { exp ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp)
                             .combinedClickable(
                                 onClick = { selectedExpenseForDetails = exp },
                                 onLongClick = { selectedExpenseForDelete = exp },
                                 onLongClickLabel = "Delete expense"
                             ),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Hairline),
+                        colors = CardDefaults.cardColors(containerColor = CardSurface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-
-                            val icon = when(exp.category) {
-                                "Food" -> Icons.Rounded.Restaurant
-                                "Travel" -> Icons.Rounded.DirectionsCar
-                                "Stay" -> Icons.Rounded.Hotel
-                                else -> Icons.Rounded.ReceiptLong
+                        Row(modifier = Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                modifier = Modifier.size(48.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = categorySoft(exp.category),
+                                contentColor = categoryAccent(exp.category)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(categoryIcon(exp.category), contentDescription = null, modifier = Modifier.size(24.dp))
+                                }
                             }
-                            Box(modifier = Modifier.size(48.dp).background(Color(0xFFE0E0E0), CircleShape), contentAlignment = Alignment.Center) {
-                                Icon(icon, contentDescription = null, tint = Color(0xFF424242), modifier = Modifier.size(24.dp))
-                            }
 
-                            Spacer(modifier = Modifier.width(16.dp))
+                            Spacer(modifier = Modifier.width(14.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(exp.expenseName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${exp.category} • ${formatDate(exp.date)}", fontSize = 12.sp, color = Color.Gray)
+                                Text(exp.expenseName, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${exp.category} • ${formatDate(exp.date)}", fontSize = 12.sp, color = MutedInk, fontWeight = FontWeight.Medium)
 
-                                // Show pending splits summary
                                 val pendingOwedForThis = exp.parsedSplitDebts().sumOf { debt ->
                                     val debtId = "${debt.expenseId}_${debt.personName}"
                                     if (paidDebts.contains(debtId)) 0.0 else debt.amount
                                 }
 
                                 if (pendingOwedForThis > 0) {
-                                    Text("Pending Split: ₹${formatAmt(pendingOwedForThis)}", color = Color(0xFF00BFA5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("Pending Split: ₹${formatAmt(pendingOwedForThis)}", color = BrandTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 } else if (exp.splitAmountOwed > 0) {
-                                    Text("Splits Settled!", color = Color(0xFF6200EA), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("Splits Settled!", color = BrandBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("₹${formatAmt(exp.amount)}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFFD32F2F))
+                                Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFFFEBEE), contentColor = DangerRed) {
+                                    Text("₹${formatAmt(exp.amount)}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                                }
                                 val imageCount = exp.receiptUri?.split("|")?.filter { it.isNotBlank() }?.size ?: 0
                                 if (imageCount > 0) {
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
-                                        Text(" $imageCount", fontSize = 12.sp, color = Color.Gray)
+                                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(12.dp), tint = MutedInk)
+                                        Text(" $imageCount", fontSize = 12.sp, color = MutedInk)
                                     }
                                 }
                             }
@@ -386,7 +583,10 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
                 expense = exp,
                 paidDebts = paidDebts,
                 onToggleDebt = toggleDebt,
-                viewModel = viewModel,
+                onDeleteRequested = {
+                    selectedExpenseForDetails = null
+                    selectedExpenseForDelete = exp
+                },
                 onDismiss = { selectedExpenseForDetails = null }
             )
         }
@@ -394,7 +594,10 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
         selectedExpenseForDelete?.let { exp ->
             AlertDialog(
                 onDismissRequest = { selectedExpenseForDelete = null },
-                title = { Text("Delete Expense", fontWeight = FontWeight.Bold) },
+                shape = RoundedCornerShape(8.dp),
+                containerColor = CardSurface,
+                icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = DangerRed) },
+                title = { Text("Delete Expense", color = Ink, fontWeight = FontWeight.ExtraBold) },
                 text = { Text("Delete ${exp.expenseName}?") },
                 confirmButton = {
                     Button(
@@ -405,7 +608,8 @@ fun TripDetailScreen(tripId: Long, viewModel: BudgetViewModel, onBack: () -> Uni
                             }
                             selectedExpenseForDelete = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DangerRed)
                     ) { Text("Delete") }
                 },
                 dismissButton = {
@@ -437,10 +641,12 @@ fun DebtsOverviewDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Who Owes You", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp) },
+        shape = RoundedCornerShape(8.dp),
+        containerColor = CardSurface,
+        title = { Text("Who Owes You", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
         text = {
             if (debtsByPerson.isEmpty()) {
-                Text("No one owes you money!", color = Color.Gray)
+                Text("No one owes you money!", color = MutedInk)
             } else {
                 LazyColumn {
                     debtsByPerson.forEach { (person, debts) ->
@@ -451,27 +657,33 @@ fun DebtsOverviewDialog(
                         item {
                             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(person, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF6200EA))
-                                    Text(if (pending > 0) "Owes ₹${formatAmt(pending)}" else "Settled!", fontWeight = FontWeight.Bold, color = if (pending > 0) Color(0xFFE65100) else Color(0xFF00BFA5))
+                                    Text(person, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = BrandBlue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (pending > 0) Color(0xFFFFF3E6) else Color(0xFFE7F8F5),
+                                        contentColor = if (pending > 0) BrandOrange else BrandTeal
+                                    ) {
+                                        Text(if (pending > 0) "Owes ₹${formatAmt(pending)}" else "Settled!", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
                                 }
 
                                 debts.forEach { debt ->
                                     val debtId = "${debt.expenseId}_${debt.personName}"
                                     val isPaid = paidDebts.contains(debtId)
 
-                                    Row(modifier = Modifier.fillMaxWidth().clickable { onToggleDebt(debtId, !isPaid) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Row(modifier = Modifier.fillMaxWidth().clickable { onToggleDebt(debtId, !isPaid) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Checkbox(
                                             checked = isPaid,
                                             onCheckedChange = { onToggleDebt(debtId, it) },
-                                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00BFA5))
+                                            colors = CheckboxDefaults.colors(checkedColor = BrandTeal)
                                         )
                                         Column {
-                                            Text(debt.expenseName, fontSize = 16.sp, textDecoration = if (isPaid) TextDecoration.LineThrough else null, color = if (isPaid) Color.Gray else Color.Black)
-                                            Text("₹${formatAmt(debt.amount)}", fontSize = 14.sp, color = if (isPaid) Color.Gray else Color(0xFFD32F2F), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
+                                            Text(debt.expenseName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textDecoration = if (isPaid) TextDecoration.LineThrough else null, color = if (isPaid) MutedInk else Ink)
+                                            Text("₹${formatAmt(debt.amount)}", fontSize = 13.sp, color = if (isPaid) MutedInk else DangerRed, textDecoration = if (isPaid) TextDecoration.LineThrough else null)
                                         }
                                     }
                                 }
-                                HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+                                HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = Hairline)
                             }
                         }
                     }
@@ -479,7 +691,7 @@ fun DebtsOverviewDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EA))) { Text("Done") }
+            Button(onClick = onDismiss, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)) { Text("Done") }
         }
     )
 }
@@ -530,11 +742,20 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Record Expense", fontWeight = FontWeight.Bold, fontSize = 22.sp) },
+        shape = RoundedCornerShape(8.dp),
+        containerColor = CardSurface,
+        title = { Text("Record Expense", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    OutlinedTextField(value = expName, onValueChange = { expName = it }, label = { Text("What did you pay for?") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(
+                        value = expName,
+                        onValueChange = { expName = it },
+                        label = { Text("What did you pay for?") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = expAmount,
@@ -543,18 +764,30 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         isError = expAmount.isNotBlank() && (amountValue == null || amountValue <= 0.0),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Category", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                    Text("Category", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MutedInk)
                     LazyRow(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(categories) { cat ->
                             FilterChip(
                                 selected = selectedCategory == cat,
                                 onClick = { selectedCategory = cat },
-                                label = { Text(cat) },
-                                shape = RoundedCornerShape(16.dp)
+                                label = { Text(cat, fontWeight = FontWeight.Bold) },
+                                leadingIcon = {
+                                    Icon(categoryIcon(cat), contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = Color(0xFFF2F5FA),
+                                    labelColor = MutedInk,
+                                    iconColor = MutedInk,
+                                    selectedContainerColor = categoryAccent(cat),
+                                    selectedLabelColor = Color.White,
+                                    selectedLeadingIconColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(8.dp)
                             )
                         }
                     }
@@ -564,8 +797,12 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Split with Friends", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        TextButton(onClick = { splits = splits + SplitEntry("", "") }) { Text("+ Add Person") }
+                        Text("Split with Friends", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                        TextButton(onClick = { splits = splits + SplitEntry("", "") }) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Person")
+                        }
                     }
 
                     splits.forEachIndexed { index, split ->
@@ -575,7 +812,8 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                                 onValueChange = { newName -> splits = splits.toMutableList().apply { this[index] = split.copy(name = newName) } },
                                 label = { Text("Name") },
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp)
                             )
                             OutlinedTextField(
                                 value = split.amount,
@@ -585,10 +823,11 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                                 isError = (split.name.isNotBlank() || split.amount.isNotBlank()) &&
                                         ((split.amount.toDoubleOrNull() ?: 0.0) <= 0.0 || splitExceedsAmount),
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp)
                             )
                             IconButton(onClick = { splits = splits.toMutableList().apply { removeAt(index) } }) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red)
+                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = DangerRed)
                             }
                         }
                     }
@@ -614,8 +853,8 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                     Button(
                         onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF3E5F5), contentColor = Color(0xFF6200EA))
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEAF0FF), contentColor = BrandBlue)
                     ) {
                         Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -646,7 +885,8 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
                     }
                 },
                 enabled = saveEnabled,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EA))
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
             ) { Text("Save Expense") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }
@@ -655,13 +895,15 @@ fun AddExpenseDialog(tripId: Long, viewModel: BudgetViewModel, onDismiss: () -> 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: (String, Boolean) -> Unit, viewModel: BudgetViewModel, onDismiss: () -> Unit) {
+fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: (String, Boolean) -> Unit, onDeleteRequested: () -> Unit, onDismiss: () -> Unit) {
     val uris = expense.receiptUri?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
     val splitDebts = expense.parsedSplitDebts()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        shape = RoundedCornerShape(8.dp),
+        containerColor = CardSurface,
         modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight(),
         title = {
             Row(
@@ -669,34 +911,41 @@ fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: 
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Payment Details", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                IconButton(onClick = {
-                    viewModel.deleteExpense(expense)
-                    onDismiss()
-                }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete Expense", tint = Color(0xFFD32F2F))
+                Text("Payment Details", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                IconButton(onClick = onDeleteRequested) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Expense", tint = DangerRed)
                 }
             }
         },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    Text(expense.expenseName, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("${expense.category} • ${formatDate(expense.date)} • ${formatTime(expense.time)}", color = Color.Gray, fontSize = 14.sp)
+                    Text(expense.expenseName, color = Ink, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("${expense.category} • ${formatDate(expense.date)} • ${formatTime(expense.time)}", color = MutedInk, fontSize = 13.sp, fontWeight = FontWeight.Medium)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)), shape = RoundedCornerShape(16.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E6)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFFD9B3))
+                    ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Total Paid", color = Color(0xFFE65100), fontSize = 14.sp)
-                            Text("₹${formatAmt(expense.amount)}", fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color(0xFFE65100))
+                            Text("Total Paid", color = BrandOrange, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("₹${formatAmt(expense.amount)}", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = BrandOrange)
                         }
                     }
 
                     if (splitDebts.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Split Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE0F2F1)), shape = RoundedCornerShape(16.dp)) {
+                        Text("Split Breakdown", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE7F8F5)),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFBFEDE7))
+                        ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 splitDebts.forEach { debt ->
                                     val debtId = "${debt.expenseId}_${debt.personName}"
@@ -706,11 +955,11 @@ fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: 
                                         Checkbox(
                                             checked = isPaid,
                                             onCheckedChange = { onToggleDebt(debtId, it) },
-                                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00BFA5))
+                                            colors = CheckboxDefaults.colors(checkedColor = BrandTeal)
                                         )
-                                        Text(debt.personName, fontSize = 16.sp, color = if (isPaid) Color.Gray else Color(0xFF00695C), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
+                                        Text(debt.personName, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (isPaid) MutedInk else Color(0xFF00695C), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
                                         Spacer(modifier = Modifier.weight(1f))
-                                        Text("₹${formatAmt(debt.amount)}", fontWeight = FontWeight.Bold, color = if (isPaid) Color.Gray else Color(0xFF004D40), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
+                                        Text("₹${formatAmt(debt.amount)}", fontWeight = FontWeight.ExtraBold, color = if (isPaid) MutedInk else Color(0xFF004D40), textDecoration = if (isPaid) TextDecoration.LineThrough else null)
                                     }
                                 }
                             }
@@ -726,7 +975,7 @@ fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: 
                                 AsyncImage(
                                     model = uriString,
                                     contentDescription = "Receipt",
-                                    modifier = Modifier.height(250.dp).width(180.dp).clip(RoundedCornerShape(16.dp)),
+                                    modifier = Modifier.height(250.dp).width(180.dp).clip(RoundedCornerShape(8.dp)),
                                     contentScale = ContentScale.Crop
                                 )
                             }
@@ -736,7 +985,7 @@ fun ExpenseDetailDialog(expense: Expense, paidDebts: Set<String>, onToggleDebt: 
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EA))) { Text("Close") }
+            Button(onClick = onDismiss, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)) { Text("Close") }
         }
     )
 }
