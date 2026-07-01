@@ -27,6 +27,24 @@ class BudgetRepository(private val tripDao: TripDao, private val expenseDao: Exp
         }
     }
 
+    suspend fun deleteTrip(trip: Trip) {
+        withContext(Dispatchers.IO) {
+            tripDao.deleteTrip(trip)
+        }
+    }
+
+    suspend fun setDebtPaidState(id: Long, amount: Double, paid: Boolean) {
+        withContext(Dispatchers.IO) {
+            expenseDao.setDebtPaidState(id, amount, paid)
+        }
+    }
+
+    suspend fun updateSplitState(id: Long, splitDetailsJson: String?, splitAmountOwed: Double) {
+        withContext(Dispatchers.IO) {
+            expenseDao.updateSplitState(id, splitDetailsJson, splitAmountOwed)
+        }
+    }
+
     fun getExpensesForTrip(tripId: Long): Flow<List<Expense>> = expenseDao.getExpensesForTrip(tripId)
 
     fun getTotalSpent(tripId: Long): Flow<Double?> = expenseDao.getTotalSpent(tripId)

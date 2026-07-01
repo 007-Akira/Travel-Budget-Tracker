@@ -8,5 +8,8 @@
         <item name="android:forceDarkAllowed">false</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/app_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/travel_budget_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/app_background</item>
     </style>
 </resources>

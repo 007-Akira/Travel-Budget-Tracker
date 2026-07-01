@@ -28,6 +28,12 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
         }
     }
 
+    fun deleteTrip(trip: Trip) {
+        viewModelScope.launch {
+            repository.deleteTrip(trip)
+        }
+    }
+
     fun addExpense(
         tripId: Long,
         name: String,
@@ -35,7 +41,9 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
         category: String,
         splitWith: String?,
         splitOwed: Double,
-        receiptUri: String?
+        receiptUri: String?,
+        splitDetailsJson: String? = null,
+        receiptUrisJson: String? = null
     ) {
         viewModelScope.launch {
             val expense = Expense(
@@ -47,9 +55,48 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
                 category = category,
                 splitWithName = splitWith,
                 splitAmountOwed = splitOwed,
-                receiptUri = receiptUri
+                receiptUri = receiptUri,
+                splitDetailsJson = splitDetailsJson,
+                receiptUrisJson = receiptUrisJson,
+                entryType = "EXPENSE"
             )
             repository.insertExpense(expense)
+        }
+    }
+
+    // --- New: record money YOU owe someone else ---
+    // Stored with amount = 0.0 so it does NOT count toward Total Spent yet.
+    fun addDebt(tripId: Long, personName: String, amount: Double, category: String) {
+        viewModelScope.launch {
+            val expense = Expense(
+                tripId = tripId,
+                expenseName = "Owed to $personName",
+                amount = 0.0,
+                date = System.currentTimeMillis(),
+                time = System.currentTimeMillis(),
+                category = category,
+                entryType = "YOU_OWE",
+                owedPersonName = personName,
+                owedAmount = amount,
+                isDebtPaid = false
+            )
+            repository.insertExpense(expense)
+        }
+    }
+
+    // Flips paid state. Paying it sets amount = owedAmount (now counts toward
+    // Total Spent); un-paying resets amount back to 0.
+    fun toggleDebtPaid(expense: Expense) {
+        viewModelScope.launch {
+            val paid = !expense.isDebtPaid
+            val newAmount = if (paid) expense.owedAmount else 0.0
+            repository.setDebtPaidState(expense.expenseId, newAmount, paid)
+        }
+    }
+
+    fun updateSplitState(expenseId: Long, splitDetailsJson: String?, splitAmountOwed: Double) {
+        viewModelScope.launch {
+            repository.updateSplitState(expenseId, splitDetailsJson, splitAmountOwed)
         }
     }
 }

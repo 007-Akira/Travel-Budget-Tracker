@@ -19,6 +19,14 @@ interface ExpenseDao {
     @Query("SELECT SUM(splitAmountOwed) FROM expenses_table WHERE tripId = :tripId")
     fun getTotalOwedToUser(tripId: Long): Flow<Double?>
 
+    // When a "YOU_OWE" debt is marked paid, we set amount = owedAmount so it
+    // finally counts toward Total Spent. Marking it unpaid again resets amount to 0.
+    @Query("UPDATE expenses_table SET amount = :amount, isDebtPaid = :paid WHERE expenseId = :id")
+    fun setDebtPaidState(id: Long, amount: Double, paid: Boolean)
+
+    @Query("UPDATE expenses_table SET splitDetailsJson = :splitDetailsJson, splitAmountOwed = :splitAmountOwed WHERE expenseId = :id")
+    fun updateSplitState(id: Long, splitDetailsJson: String?, splitAmountOwed: Double)
+
     @androidx.room.Delete
     fun deleteExpense(expense: Expense)
 }

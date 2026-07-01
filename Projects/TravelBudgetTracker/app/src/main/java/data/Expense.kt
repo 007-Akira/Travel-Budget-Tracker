@@ -28,5 +28,15 @@ data class Expense(
     val category: String,
     val receiptUri: String? = null,
     val splitWithName: String? = null,
-    val splitAmountOwed: Double = 0.0
+    val splitAmountOwed: Double = 0.0,
+    val splitDetailsJson: String? = null,
+    val receiptUrisJson: String? = null,
+
+    // --- New: "I Owe Someone" tracking ---
+    // "EXPENSE" = normal spend (optionally split so others owe you)
+    // "YOU_OWE" = money you owe someone else, not yet paid
+    val entryType: String = "EXPENSE",
+    val owedPersonName: String? = null,
+    val owedAmount: Double = 0.0,
+    val isDebtPaid: Boolean = false
 )

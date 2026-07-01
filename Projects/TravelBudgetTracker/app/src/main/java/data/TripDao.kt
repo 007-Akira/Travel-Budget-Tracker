@@ -1,6 +1,7 @@
 package com.example.travelbudgettracker.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
@@ -12,4 +13,7 @@ interface TripDao {
 
     @Query("SELECT * FROM trips_table ORDER BY createdAt DESC")
     fun getAllTrips(): Flow<List<Trip>>
+
+    @Delete
+    fun deleteTrip(trip: Trip)
 }
