@@ -15,6 +15,7 @@ import com.example.travelbudgettracker.ui.theme.GoldLight
 import com.example.travelbudgettracker.ui.theme.Success
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.travelbudgettracker.data.Expense
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
@@ -889,6 +891,10 @@ private fun AddExpenseDialog(
         mutableStateListOf<String>()
     }
 
+    var selectedReceiptUri by remember {
+        mutableStateOf<String?>(null)
+    }
+
     var error by remember {
         mutableStateOf<String?>(null)
     }
@@ -930,6 +936,7 @@ private fun AddExpenseDialog(
                     },
                     label = "What did you pay for?",
                     placeholder = "Dinner, taxi, hotel room...",
+                    singleLine = false,
                     leadingIcon = {
                         Text(text = "🧾")
                     },
@@ -1062,7 +1069,10 @@ private fun AddExpenseDialog(
                         contentDescription = "Attached receipt ${index + 1}",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(150.dp),
+                            .height(150.dp)
+                            .clickable {
+                                selectedReceiptUri = uri
+                            },
                         contentScale = ContentScale.Crop
                     )
 
@@ -1168,6 +1178,15 @@ private fun AddExpenseDialog(
                 )
             }
         }
+    }
+
+    selectedReceiptUri?.let { receiptUri ->
+        ReceiptImageDialog(
+            receiptUri = receiptUri,
+            onDismiss = {
+                selectedReceiptUri = null
+            }
+        )
     }
 }
 
@@ -1320,6 +1339,10 @@ private fun ExpenseDetailsDialog(
     onSplitPaidChange: (List<SplitPerson>) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var selectedReceiptUri by remember {
+        mutableStateOf<String?>(null)
+    }
+
     Dialog(
         onDismissRequest = onDismiss
     ) {
@@ -1401,7 +1424,10 @@ private fun ExpenseDetailsDialog(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     ReceiptPreviewCard(
-                        imageLabel = "${receiptUris.size} photo${if (receiptUris.size == 1) "" else "s"} attached"
+                        imageLabel = "${receiptUris.size} photo${if (receiptUris.size == 1) "" else "s"} attached",
+                        onClick = {
+                            selectedReceiptUri = receiptUris.first()
+                        }
                     )
 
                     receiptUris.forEachIndexed { index, receiptUri ->
@@ -1412,7 +1438,10 @@ private fun ExpenseDetailsDialog(
                             contentDescription = "Attached receipt ${index + 1}",
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp),
+                                .height(220.dp)
+                                .clickable {
+                                    selectedReceiptUri = receiptUri
+                                },
                             contentScale = ContentScale.Crop
                         )
                     }
@@ -1423,6 +1452,42 @@ private fun ExpenseDetailsDialog(
                     )
                 }
             }
+        }
+    }
+
+    selectedReceiptUri?.let { receiptUri ->
+        ReceiptImageDialog(
+            receiptUri = receiptUri,
+            onDismiss = {
+                selectedReceiptUri = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun ReceiptImageDialog(
+    receiptUri: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.94f))
+                .clickable(onClick = onDismiss)
+                .padding(18.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = receiptUri,
+                contentDescription = "Full receipt photo",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
         }
     }
 }
