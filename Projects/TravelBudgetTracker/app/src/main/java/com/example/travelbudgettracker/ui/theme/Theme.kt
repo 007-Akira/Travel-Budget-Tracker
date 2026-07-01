@@ -1,6 +1,5 @@
 package com.example.travelbudgettracker.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -39,7 +38,6 @@ fun TravelBudgetTrackerTheme(
     darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-
     MaterialTheme(
         colorScheme = PremiumDarkColors,
         typography = Typography(),
